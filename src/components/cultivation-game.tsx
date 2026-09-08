@@ -94,6 +94,10 @@ export default function CultivationGame() {
   useEffect(() => {
     tuViRef.current = tuVi
   }, [tuVi])
+  useEffect(() => {
+    envGroupRef.current = getRealmGroup(getRealmIndex(tuViRef.current || tuVi))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Nạp bộ ảnh Pixel Art + bố trí thế giới
   useEffect(() => {
