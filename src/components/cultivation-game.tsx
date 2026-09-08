@@ -78,11 +78,7 @@ export default function CultivationGame() {
 
   const [ready, setReady] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [tuVi, setTuVi] = useState(() => {
-    // DEV TEST: ?tuvi=NNN
-    const v = Number(new URLSearchParams(window.location.search).get("tuvi") || 0)
-    return Number.isFinite(v) ? v : 0
-  })
+  const [tuVi, setTuVi] = useState(0)
   const [quiz, setQuiz] = useState<{ q: Question; objId: number } | null>(null)
   const [picked, setPicked] = useState<number | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -95,7 +91,12 @@ export default function CultivationGame() {
     tuViRef.current = tuVi
   }, [tuVi])
   useEffect(() => {
-    envGroupRef.current = getRealmGroup(getRealmIndex(tuViRef.current || tuVi))
+    // DEV TEST: ?tuvi=NNN
+    const v = Number(new URLSearchParams(window.location.search).get("tuvi") || 0)
+    if (Number.isFinite(v) && v > 0) {
+      setTuVi(v)
+      envGroupRef.current = getRealmGroup(getRealmIndex(v))
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
