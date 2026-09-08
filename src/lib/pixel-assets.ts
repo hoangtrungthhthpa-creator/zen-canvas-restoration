@@ -293,7 +293,66 @@ function prepareSpriteSheet(img: HTMLImageElement, targetH: number, dpr: number)
       ctx.drawImage(clean, sx, sy, cropW, cropH, frame * frameW, row * frameH, frameW, frameH)
     })
   }
+
+  buildSideRows(out, ctx, frameW, frameH)
   return { canvas: out, frameW, frameH }
+}
+
+// Hai hàng đi ngang được dựng lại từ MỘT tư thế gốc duy nhất:
+// - Nửa thân trên (đầu/mặt/thân) lấy cố định từ frame 0 hàng "right" -> hướng
+//   nhìn không bao giờ đổi theo frameIndex (hết hiện tượng lật/ping-pong).
+// - Nửa dưới (chân + tà áo) mới thay theo frameIndex, kèm nhún nhẹ.
+// - Hàng "left" là ảnh phản chiếu ngang cố định của hàng "right".
+const LEG_BOB = [0, -1, 0, 1]
+
+function buildSideRows(
+  out: HTMLCanvasElement,
+  ctx: CanvasRenderingContext2D,
+  frameW: number,
+  frameH: number,
+) {
+  const rowRight = PLAYER_DIR_ROW.right
+  const rowLeft = PLAYER_DIR_ROW.left
+  const cut = Math.round(frameH * 0.55)
+
+  // Bản sao hàng "right" gốc để đọc trong lúc vẽ lại.
+  const src = document.createElement("canvas")
+  src.width = frameW * PLAYER_FRAMES
+  src.height = frameH
+  const sctx = src.getContext("2d")!
+  sctx.imageSmoothingEnabled = true
+  sctx.imageSmoothingQuality = "high"
+  sctx.drawImage(out, 0, rowRight * frameH, src.width, frameH, 0, 0, src.width, frameH)
+
+  for (let f = 0; f < PLAYER_FRAMES; f++) {
+    const dx = f * frameW
+    ctx.clearRect(dx, rowRight * frameH, frameW, frameH)
+    // thân trên cố định
+    ctx.drawImage(src, 0, 0, frameW, cut, dx, rowRight * frameH, frameW, cut)
+    // chân + tà áo theo frame
+    const bob = LEG_BOB[f] ?? 0
+    ctx.drawImage(
+      src,
+      dx,
+      cut,
+      frameW,
+      frameH - cut,
+      dx,
+      rowRight * frameH + cut + bob,
+      frameW,
+      frameH - cut,
+    )
+  }
+
+  for (let f = 0; f < PLAYER_FRAMES; f++) {
+    const dx = f * frameW
+    ctx.clearRect(dx, rowLeft * frameH, frameW, frameH)
+    ctx.save()
+    ctx.translate(dx + frameW, rowLeft * frameH)
+    ctx.scale(-1, 1)
+    ctx.drawImage(out, dx, rowRight * frameH, frameW, frameH, 0, 0, frameW, frameH)
+    ctx.restore()
+  }
 }
 
 export const SPRITE_HEIGHTS = {
