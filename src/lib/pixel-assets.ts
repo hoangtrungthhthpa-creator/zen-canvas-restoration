@@ -344,13 +344,27 @@ function buildSideRows(
     )
   }
 
+  // snapshot hàng đã rebuild (có nhịp bước chân) — art gốc quay mặt sang trái
+  const rebuilt = document.createElement("canvas")
+  rebuilt.width = frameW * PLAYER_FRAMES
+  rebuilt.height = frameH
+  rebuilt.getContext("2d")!.drawImage(out, 0, rowRight * frameH, rebuilt.width, frameH, 0, 0, rebuilt.width, frameH)
+
+  // hàng trái giữ nguyên hướng nhìn trái của art gốc
   for (let f = 0; f < PLAYER_FRAMES; f++) {
     const dx = f * frameW
     ctx.clearRect(dx, rowLeft * frameH, frameW, frameH)
+    ctx.drawImage(rebuilt, dx, 0, frameW, frameH, dx, rowLeft * frameH, frameW, frameH)
+  }
+
+  // hàng phải = lật gương từ art gốc để mặt nhìn phải
+  for (let f = 0; f < PLAYER_FRAMES; f++) {
+    const dx = f * frameW
+    ctx.clearRect(dx, rowRight * frameH, frameW, frameH)
     ctx.save()
-    ctx.translate(dx + frameW, rowLeft * frameH)
+    ctx.translate(dx + frameW, rowRight * frameH)
     ctx.scale(-1, 1)
-    ctx.drawImage(out, dx, rowRight * frameH, frameW, frameH, 0, 0, frameW, frameH)
+    ctx.drawImage(rebuilt, dx, 0, frameW, frameH, 0, 0, frameW, frameH)
     ctx.restore()
   }
 }

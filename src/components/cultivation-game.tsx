@@ -11,6 +11,7 @@ import {
   type PlayerDirection,
 } from "@/lib/pixel-assets"
 import { getRealmIndex, randomQuestion, REALMS, type Question } from "@/lib/cultivation-data"
+import { getRealmGroup, REALM_THEMES, rewardMultiplier } from "@/lib/realm-themes"
 
 const WORLD = 2200
 const PLAYER_R = 26
@@ -23,11 +24,29 @@ type Interactive = { id: number; x: number; y: number; type: "stone" | "book"; a
 type Tree = { x: number; y: number; scale: number }
 type Herb = { x: number; y: number; phase: number; h: number }
 type Mote = { x: number; y: number; r: number; speed: number; phase: number }
+type Mist = { x: number; y: number; rx: number; ry: number; speed: number; phase: number }
+type Leaf = { x: number; y: number; speed: number; sway: number; phase: number; hue: number; size: number }
+type TintKind = "tree" | "stone" | "scroll"
+type Bolt = { pts: Vec[]; until: number; next: number }
 
-type Assets = PixelAssets & { groundPattern: CanvasPattern | null }
+type Tinted = Record<TintKind, (HTMLCanvasElement | null)[]>
+type Assets = PixelAssets & { groundPattern: CanvasPattern | null; tinted: Tinted }
 
 function rand(min: number, max: number) {
   return min + Math.random() * (max - min)
+}
+
+// Tô màu lại sprite (giữ nguyên alpha) cho từng nhóm cảnh giới
+function tintCanvas(src: HTMLCanvasElement, tint: string): HTMLCanvasElement {
+  const c = document.createElement("canvas")
+  c.width = src.width
+  c.height = src.height
+  const ctx = c.getContext("2d")!
+  ctx.drawImage(src, 0, 0)
+  ctx.globalCompositeOperation = "source-atop"
+  ctx.fillStyle = tint
+  ctx.fillRect(0, 0, c.width, c.height)
+  return c
 }
 
 export default function CultivationGame() {
@@ -46,6 +65,10 @@ export default function CultivationGame() {
   const rafRef = useRef(0)
   const lastRef = useRef(0)
   const viewRef = useRef({ w: 0, h: 0, dpr: 1 })
+  const mistsRef = useRef<Mist[]>([])
+  const leavesRef = useRef<Leaf[]>([])
+  const boltRef = useRef<Bolt>({ pts: [], until: 0, next: 0 })
+  const envGroupRef = useRef(0)
 
   // Trạng thái animation Sprite Sheet 4x4: hướng đi (hàng) + frame bước (cột)
   const directionRef = useRef<PlayerDirection>("down")
@@ -60,6 +83,8 @@ export default function CultivationGame() {
   const [picked, setPicked] = useState<number | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [breakthrough, setBreakthrough] = useState<string | null>(null)
+  const [envFade, setEnvFade] = useState<"idle" | "out" | "in">("idle")
+  const [envToast, setEnvToast] = useState<string | null>(null)
 
   const tuViRef = useRef(0)
   useEffect(() => {
@@ -82,7 +107,26 @@ export default function CultivationGame() {
           // Thu ảnh tile 1024px về kích cỡ ô GROUND_TILE trong thế giới
           groundPattern?.setTransform(new DOMMatrix().scale(GROUND_TILE / pixel.ground.width))
         }
-        assetsRef.current = { ...pixel, groundPattern }
+        // Tô màu sẵn sprite theo 4 nhóm cảnh giới
+        const tinted: Tinted = { tree: [], stone: [], scroll: [] }
+        for (const th of REALM_THEMES) {
+          tinted.tree.push(th.treeTint ? tintCanvas(pixel.tree, th.treeTint) : null)
+          tinted.stone.push(th.stoneTint ? tintCanvas(pixel.stone, th.stoneTint) : null)
+          tinted.scroll.push(th.bookTint ? tintCanvas(pixel.scroll, th.bookTint) : null)
+        }
+        assetsRef.current = { ...pixel, groundPattern, tinted }
+
+        // Mây mờ trôi + lá rơi (dùng theo nhóm cảnh giới)
+        const mists: Mist[] = []
+        for (let i = 0; i < 8; i++) {
+          mists.push({ x: rand(0, WORLD), y: rand(0, WORLD), rx: rand(160, 320), ry: rand(50, 90), speed: rand(8, 22), phase: rand(0, Math.PI * 2) })
+        }
+        mistsRef.current = mists
+        const leaves: Leaf[] = []
+        for (let i = 0; i < 26; i++) {
+          leaves.push({ x: rand(0, WORLD), y: rand(0, WORLD), speed: rand(24, 52), sway: rand(10, 26), phase: rand(0, Math.PI * 2), hue: rand(0, 1), size: rand(4, 8) })
+        }
+        leavesRef.current = leaves
 
         // Cây linh thụ rải rác, tránh tâm bản đồ
         const trees: Tree[] = []
@@ -158,14 +202,29 @@ export default function CultivationGame() {
       window.setTimeout(() => {
         if (correct) {
           const prevIdx = getRealmIndex(tuViRef.current)
-          const next = tuViRef.current + quiz.q.reward
+          // Linh Khí thưởng tăng theo nhóm cảnh giới hiện tại
+          const reward = quiz.q.reward * rewardMultiplier(prevIdx)
+          const next = tuViRef.current + reward
           const nextIdx = getRealmIndex(next)
           setTuVi(next)
           if (nextIdx > prevIdx) {
             setBreakthrough(REALMS[nextIdx].name)
             window.setTimeout(() => setBreakthrough(null), 2600)
+            // Sang nhóm Tiên Cảnh mới: fade out/in 1s + toast
+            const prevGroup = getRealmGroup(prevIdx)
+            const nextGroup = getRealmGroup(nextIdx)
+            if (nextGroup > prevGroup) {
+              setEnvFade("out")
+              window.setTimeout(() => {
+                envGroupRef.current = nextGroup
+                setEnvFade("in")
+                setEnvToast("Mở khóa Tiên Cảnh Mới!")
+                window.setTimeout(() => setEnvFade("idle"), 1000)
+                window.setTimeout(() => setEnvToast(null), 2400)
+              }, 1000)
+            }
           } else {
-            setToast(`+${quiz.q.reward} Tu Vi`)
+            setToast(`+${reward} Tu Vi`)
             window.setTimeout(() => setToast(null), 1400)
           }
         } else {
@@ -313,6 +372,8 @@ export default function CultivationGame() {
         x > camX - pad && x < camX + w + pad && y > camY - pad && y < camY + h + pad
 
       // --- VẼ ---
+      const theme = REALM_THEMES[envGroupRef.current]
+      const g = envGroupRef.current
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       ctx.clearRect(0, 0, w, h)
       ctx.imageSmoothingEnabled = true
@@ -320,10 +381,32 @@ export default function CultivationGame() {
       ctx.save()
       ctx.translate(-camX, -camY)
 
-      // Tilemap đá cổ mọc rêu
+      // Tilemap theo nhóm cảnh giới (đá cổ rêu / bạch ngọc / cẩm thạch / hồ ngọc)
       if (assets.groundPattern) {
         ctx.fillStyle = assets.groundPattern
         ctx.fillRect(camX, camY, w, h)
+        ctx.fillStyle = theme.groundTint
+        ctx.fillRect(camX, camY, w, h)
+      }
+
+      // Mây mờ trôi (Tiên Sơn / Cửu Thiên)
+      if (theme.mist) {
+        for (const m of mistsRef.current) {
+          const mx = ((m.x + (t / 1000) * m.speed) % (WORLD + m.rx * 2)) - m.rx
+          const my = m.y + Math.sin(t / 2600 + m.phase) * 18
+          if (!inView(mx, my, m.rx)) continue
+          const grad = ctx.createRadialGradient(mx, my, 0, mx, my, m.rx)
+          grad.addColorStop(0, "rgba(255, 255, 255, 0.13)")
+          grad.addColorStop(1, "rgba(255, 255, 255, 0)")
+          ctx.fillStyle = grad
+          ctx.save()
+          ctx.translate(mx, my)
+          ctx.scale(1, m.ry / m.rx)
+          ctx.beginPath()
+          ctx.arc(0, 0, m.rx, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.restore()
+        }
       }
 
       // Linh thảo nhấp nhô theo gió
@@ -332,7 +415,7 @@ export default function CultivationGame() {
         if (!inView(hb.x, hb.y, 24)) continue
         const sway = Math.sin(t / 520 + hb.phase) * 3.5
         const glow = 0.55 + 0.35 * Math.sin(t / 700 + hb.phase * 1.7)
-        ctx.strokeStyle = `rgba(150, 240, 200, ${glow})`
+        ctx.strokeStyle = `rgba(${theme.herbColor}, ${glow})`
         ctx.lineWidth = 2
         for (let i = -1; i <= 1; i++) {
           ctx.beginPath()
@@ -346,8 +429,9 @@ export default function CultivationGame() {
       const drawables: { y: number; fn: () => void }[] = []
 
       for (const tr of treesRef.current) {
+        const treeImg = assets.tinted.tree[g] ?? assets.tree
         const dh = SPRITE_HEIGHTS.tree * tr.scale
-        const dw = (assets.tree.width / assets.tree.height) * dh
+        const dw = (treeImg.width / treeImg.height) * dh
         if (!inView(tr.x, tr.y, Math.max(dw, dh))) continue
         drawables.push({
           y: tr.y,
@@ -364,7 +448,7 @@ export default function CultivationGame() {
             ctx.save()
             ctx.translate(tr.x, tr.y)
             ctx.rotate(sway)
-            ctx.drawImage(assets.tree, -dw / 2, -dh + 14 * tr.scale, dw, dh)
+            ctx.drawImage(treeImg, -dw / 2, -dh + 14 * tr.scale, dw, dh)
             ctx.restore()
           },
         })
@@ -373,14 +457,40 @@ export default function CultivationGame() {
       for (const o of objectsRef.current) {
         if (!o.active) continue
         if (!inView(o.x, o.y, 80)) continue
-        const img = o.type === "stone" ? assets.stone : assets.scroll
+        const baseImg = o.type === "stone" ? assets.stone : assets.scroll
+        const img = o.type === "stone" ? (assets.tinted.stone[g] ?? baseImg) : (assets.tinted.scroll[g] ?? baseImg)
         const dh = o.type === "stone" ? SPRITE_HEIGHTS.stone : SPRITE_HEIGHTS.scroll
         const dw = (img.width / img.height) * dh
         const float = Math.sin(t / 420 + o.id) * 6
         drawables.push({
           y: o.y,
           fn: () => {
-            const pulse = 0.5 + 0.5 * Math.sin(t / 240 + o.id * 2)
+            // Trung Phẩm trở lên: nhịp pulse mạnh hơn
+            const pulseSpeed = theme.stonePulse ? 170 : 240
+            const pulse = 0.5 + 0.5 * Math.sin(t / pulseSpeed + o.id * 2)
+            const isStone = o.type === "stone"
+            const glowColor = isStone ? theme.stoneGlow : theme.bookGlow
+
+            // Trận pháp quay dưới chân vật phẩm (Tiên Tráp / Tiên Thạch)
+            if (theme.formationRing) {
+              ctx.save()
+              ctx.translate(o.x, o.y + dh * 0.45)
+              ctx.rotate(t / 600)
+              ctx.strokeStyle = `rgba(255, 215, 130, ${0.35 + 0.25 * pulse})`
+              ctx.lineWidth = 1.6
+              ctx.beginPath()
+              ctx.ellipse(0, 0, dw * 0.55, dw * 0.2, 0, 0, Math.PI * 2)
+              ctx.stroke()
+              for (let i = 0; i < 8; i++) {
+                const a = (Math.PI * 2 * i) / 8
+                ctx.beginPath()
+                ctx.moveTo(Math.cos(a) * dw * 0.34, Math.sin(a) * dw * 0.125)
+                ctx.lineTo(Math.cos(a) * dw * 0.55, Math.sin(a) * dw * 0.2)
+                ctx.stroke()
+              }
+              ctx.restore()
+            }
+
             // Bóng đổ co giãn theo độ cao lơ lửng
             ctx.save()
             ctx.fillStyle = "rgba(10, 30, 25, 0.35)"
@@ -388,20 +498,77 @@ export default function CultivationGame() {
             ctx.ellipse(o.x, o.y + dh * 0.45, dw * 0.32 - float * 0.6, 6 - float * 0.25, 0, 0, Math.PI * 2)
             ctx.fill()
             ctx.restore()
-            // Hào quang toả sáng
+
+            // Hào quang toả sáng — Tiên Thạch xoay hue rainbow, Ngọc Giản/Tiên Tráp ngũ sắc
             ctx.save()
-            const glowColor = o.type === "stone" ? "160, 240, 220" : "255, 214, 120"
-            const grad = ctx.createRadialGradient(o.x, o.y + float, 6, o.x, o.y + float, dh * 0.9)
-            grad.addColorStop(0, `rgba(${glowColor}, ${0.35 + 0.25 * pulse})`)
-            grad.addColorStop(1, `rgba(${glowColor}, 0)`)
+            const cy = o.y + float
+            let c0: string
+            let c1: string
+            if (isStone && theme.stoneRainbow) {
+              const hue = (t / 12 + o.id * 60) % 360
+              c0 = `hsla(${hue}, 95%, 72%, ${0.5 + 0.25 * pulse})`
+              c1 = `hsla(${(hue + 90) % 360}, 95%, 65%, 0)`
+            } else if (!isStone && theme.bookRainbowAura) {
+              const hue = (t / 16 + o.id * 45) % 360
+              c0 = `hsla(${hue}, 90%, 75%, ${0.4 + 0.2 * pulse})`
+              c1 = `hsla(${(hue + 140) % 360}, 90%, 70%, 0)`
+            } else {
+              c0 = `rgba(${glowColor}, ${0.35 + 0.25 * pulse})`
+              c1 = `rgba(${glowColor}, 0)`
+            }
+            const grad = ctx.createRadialGradient(o.x, cy, 6, o.x, cy, dh * 0.9)
+            grad.addColorStop(0, c0)
+            grad.addColorStop(1, c1)
             ctx.fillStyle = grad
             ctx.beginPath()
-            ctx.arc(o.x, o.y + float, dh * 0.9, 0, Math.PI * 2)
+            ctx.arc(o.x, cy, dh * 0.9, 0, Math.PI * 2)
             ctx.fill()
             ctx.restore()
+
+            // Tia particle bắn ra quanh Thượng Phẩm / Tiên Thạch
+            if (isStone && theme.stoneParticles) {
+              ctx.save()
+              for (let i = 0; i < 6; i++) {
+                const a = t / 300 + (Math.PI * 2 * i) / 6
+                const rr = dh * (0.35 + 0.3 * ((t / 500 + i * 0.37) % 1))
+                const alpha = 0.7 * (1 - rr / (dh * 0.7))
+                ctx.fillStyle = theme.stoneRainbow
+                  ? `hsla(${(t / 12 + i * 60) % 360}, 95%, 75%, ${alpha})`
+                  : `rgba(${glowColor}, ${alpha})`
+                ctx.beginPath()
+                ctx.arc(o.x + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.8, 2.2, 0, Math.PI * 2)
+                ctx.fill()
+              }
+              ctx.restore()
+            }
+
+            // Linh khí xoay quanh sách (Lụa Thư / Ngọc Giản / Tiên Tráp)
+            if (!isStone && theme.bookSwirl) {
+              ctx.save()
+              ctx.strokeStyle = `rgba(${glowColor}, 0.55)`
+              ctx.lineWidth = 1.6
+              for (let i = 0; i < 3; i++) {
+                const a0 = t / 350 + (Math.PI * 2 * i) / 3
+                ctx.beginPath()
+                ctx.arc(o.x, cy, dh * 0.55, a0, a0 + Math.PI * 0.55)
+                ctx.stroke()
+              }
+              ctx.restore()
+            }
+
             // Sprite vật thể
             const s = 1 + 0.04 * pulse
             ctx.drawImage(img, o.x - (dw * s) / 2, o.y - (dh * s) / 2 + float, dw * s, dh * s)
+
+            // Nhãn phẩm cấp vật phẩm
+            ctx.save()
+            ctx.font = "11px serif"
+            ctx.textAlign = "center"
+            ctx.fillStyle = `rgba(${glowColor}, 0.9)`
+            ctx.shadowColor = `rgba(${glowColor}, 0.8)`
+            ctx.shadowBlur = 6
+            ctx.fillText(isStone ? theme.stoneLabel : theme.bookLabel, o.x, o.y - dh * 0.62 + float)
+            ctx.restore()
           },
         })
       }
@@ -459,10 +626,67 @@ export default function CultivationGame() {
         const mx = m.x + Math.sin(t / 1300 + m.phase) * 14
         if (!inView(mx, wrappedY, 10)) continue
         const a = 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(t / 500 + m.phase))
-        ctx.fillStyle = `rgba(200, 255, 230, ${a})`
+        ctx.fillStyle = `rgba(${theme.moteColor}, ${a})`
         ctx.beginPath()
         ctx.arc(mx, wrappedY, m.r, 0, Math.PI * 2)
         ctx.fill()
+      }
+
+      // Lá đào / lá vàng đỏ rơi theo gió
+      if (theme.leaves !== "none") {
+        for (const lf of leavesRef.current) {
+          const ly = (lf.y + (t / 1000) * lf.speed) % WORLD
+          const lx = lf.x + Math.sin(t / 900 + lf.phase) * lf.sway
+          if (!inView(lx, ly, 20)) continue
+          const color =
+            theme.leaves === "petal"
+              ? `rgba(255, ${170 + Math.round(lf.hue * 50)}, ${200 + Math.round(lf.hue * 40)}, 0.85)`
+              : lf.hue > 0.5
+                ? "rgba(230, 180, 70, 0.9)"
+                : "rgba(200, 70, 60, 0.9)"
+          ctx.save()
+          ctx.translate(lx, ly)
+          ctx.rotate(Math.sin(t / 700 + lf.phase) * 0.9)
+          ctx.fillStyle = color
+          ctx.beginPath()
+          ctx.ellipse(0, 0, lf.size, lf.size * 0.45, 0, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.restore()
+        }
+      }
+
+      // Tia linh khí sấm sét (Thái Cổ Thần Điện)
+      if (theme.lightning) {
+        const bolt = boltRef.current
+        if (t >= bolt.next) {
+          const x0 = rand(camX, camX + w)
+          const y0 = camY
+          const pts: Vec[] = [{ x: x0, y: y0 }]
+          let px = x0
+          let py = y0
+          const yEnd = y0 + rand(h * 0.4, h * 0.8)
+          while (py < yEnd) {
+            px += rand(-40, 40)
+            py += rand(40, 90)
+            pts.push({ x: px, y: py })
+          }
+          bolt.pts = pts
+          bolt.until = t + 160
+          bolt.next = t + rand(900, 2400)
+        }
+        if (t < bolt.until && bolt.pts.length > 1) {
+          const alpha = (bolt.until - t) / 160
+          ctx.save()
+          ctx.strokeStyle = `rgba(190, 215, 255, ${0.85 * alpha})`
+          ctx.lineWidth = 2.5
+          ctx.shadowColor = "rgba(160, 190, 255, 0.9)"
+          ctx.shadowBlur = 14
+          ctx.beginPath()
+          ctx.moveTo(bolt.pts[0].x, bolt.pts[0].y)
+          for (const p of bolt.pts.slice(1)) ctx.lineTo(p.x, p.y)
+          ctx.stroke()
+          ctx.restore()
+        }
       }
 
       ctx.restore()
@@ -594,6 +818,22 @@ export default function CultivationGame() {
           style={{ transform: `translate(calc(-50% + ${knob.x}px), calc(-50% + ${knob.y}px))` }}
         />
       </div>
+
+      {/* Fade chuyển Tiên Cảnh khi sang nhóm cảnh giới mới */}
+      <div
+        className={`pointer-events-none absolute inset-0 z-30 bg-ink transition-opacity duration-1000 ${
+          envFade === "out" ? "opacity-100" : "opacity-0"
+        }`}
+      />
+
+      {/* Toast mở khóa Tiên Cảnh */}
+      {envToast && (
+        <div className="pointer-events-none absolute left-1/2 top-24 z-30 -translate-x-1/2 animate-in fade-in slide-in-from-top-2">
+          <span className="rounded-full border border-gold/50 bg-ink/85 px-5 py-2 font-serif text-lg text-gold drop-shadow-[0_0_18px_rgba(231,200,106,0.5)]">
+            {envToast}
+          </span>
+        </div>
+      )}
 
       {/* Toast +Tu Vi */}
       {toast && (
