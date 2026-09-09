@@ -100,8 +100,8 @@ export const REALM_THEMES: RealmTheme[] = [
   {
     // Nhóm 4: Chân Tiên — Cửu Thiên Tiên Giới, hồ ngọc phản mây
     name: "Cửu Thiên Tiên Giới",
-    groundTint: "rgba(160, 205, 255, 0.58)",
-    treeTint: "rgba(255, 160, 200, 0.62)",
+    groundTint: "rgba(120, 195, 255, 0.72)",
+    treeTint: "rgba(255, 150, 205, 0.78)",
     stoneTint: "rgba(255, 235, 190, 0.55)",
     bookTint: "rgba(255, 205, 70, 0.65)",
     stoneGlow: "255, 255, 255",
