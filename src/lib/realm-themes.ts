@@ -54,10 +54,10 @@ export const REALM_THEMES: RealmTheme[] = [
   {
     // Nhóm 2: Nguyên Anh / Hóa Thần / Luyện Hư — Tiên Sơn mây mờ, bạch ngọc
     name: "Tiên Sơn Vân Hải",
-    groundTint: "rgba(225, 232, 240, 0.28)",
-    treeTint: "rgba(212, 130, 40, 0.45)",
-    stoneTint: "rgba(150, 90, 220, 0.55)",
-    bookTint: "rgba(220, 180, 90, 0.30)",
+    groundTint: "rgba(226, 236, 250, 0.55)",
+    treeTint: "rgba(226, 132, 32, 0.72)",
+    stoneTint: "rgba(150, 80, 230, 0.80)",
+    bookTint: "rgba(230, 185, 80, 0.55)",
     stoneGlow: "186, 120, 255",
     bookGlow: "255, 205, 110",
     herbColor: "230, 220, 180",
@@ -77,10 +77,10 @@ export const REALM_THEMES: RealmTheme[] = [
   {
     // Nhóm 3: Hợp Thể / Đại Thừa / Độ Kiếp — Thái Cổ Thần Điện, cẩm thạch
     name: "Thái Cổ Thần Điện",
-    groundTint: "rgba(45, 35, 85, 0.38)",
-    treeTint: "rgba(150, 200, 235, 0.40)",
-    stoneTint: "rgba(215, 45, 60, 0.55)",
-    bookTint: "rgba(120, 220, 200, 0.35)",
+    groundTint: "rgba(48, 30, 96, 0.66)",
+    treeTint: "rgba(130, 190, 250, 0.70)",
+    stoneTint: "rgba(225, 40, 55, 0.80)",
+    bookTint: "rgba(110, 225, 205, 0.60)",
     stoneGlow: "255, 90, 90",
     bookGlow: "255, 225, 130",
     herbColor: "180, 200, 255",
@@ -100,10 +100,10 @@ export const REALM_THEMES: RealmTheme[] = [
   {
     // Nhóm 4: Chân Tiên — Cửu Thiên Tiên Giới, hồ ngọc phản mây
     name: "Cửu Thiên Tiên Giới",
-    groundTint: "rgba(255, 210, 225, 0.30)",
-    treeTint: "rgba(255, 170, 200, 0.35)",
-    stoneTint: null,
-    bookTint: "rgba(255, 210, 90, 0.40)",
+    groundTint: "rgba(120, 195, 255, 0.72)",
+    treeTint: "rgba(255, 150, 205, 0.78)",
+    stoneTint: "rgba(255, 235, 190, 0.55)",
+    bookTint: "rgba(255, 205, 70, 0.65)",
     stoneGlow: "255, 255, 255",
     bookGlow: "255, 220, 120",
     herbColor: "255, 200, 220",
